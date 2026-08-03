@@ -3,25 +3,60 @@
 Este archivo es el punto de partida de la clase. Está lleno de pistas y
 TODOs para que el estudiante escriba el código durante la explicación.
 """
+from __future__ import annotations
 
 import os
+from anthropic import Anthropic
 
 
 MODEL = "claude-sonnet-4-6"
 
+MAX_HISTORY_MESSAGES =12
+
+def keep_recent_messages(messages: list[dict[str, str]], max_messages: int = MAX_HISTORY_MESSAGES) -> list[dict[str, str]]:
+    """Conserva solo los últimos turnos para controlar latencia, contexto y costo."""
+    return messages[-max_messages:]
+
+
+def summarize_history(client: Anthropic, messages: list[dict[str, str]]) -> str:
+    """Resume la conversación cuando ya no conviene enviar todo el historial."""
+    transcript = "\n".join(f"{message['role']}: {message['content']}" for message in messages)
+    response = client.messages.create(
+        model=MODEL,
+        max_tokens=400,
+        system="Resume una conversación para preservar contexto importante.",
+        messages=[{"role": "user", "content": transcript}],
+    )
+    return "".join(block.text for block in response.content if block.type == "text")
+
 
 def main() -> None:
-    """Completa este ejercicio durante la clase."""
     api_key = os.getenv("ANTHROPIC_API_KEY")
-
-    # TODO 1: valida que exista ANTHROPIC_API_KEY antes de llamar a la API.
-    # TODO 2: crea el cliente de Anthropic.
-    # TODO 3: envía el mensaje principal de esta clase.
-    # TODO 4: imprime la respuesta de Claude en la terminal.
-    print("Inicio de la clase 04. Configura el ejercicio aquí.")
     if not api_key:
-        print("Tip: exporta ANTHROPIC_API_KEY antes de ejecutar el ejemplo.")
+        raise RuntimeError("Define ANTHROPIC_API_KEY.")
 
+    client = Anthropic(api_key=api_key)
+    messages = [
+        {"role": "user", "content": "Estoy creando un chatbot para soporte técnico."},
+        {"role": "assistant", "content": "Perfecto. Lo enfocaremos en respuestas claras."},
+        {"role": "user", "content": "El bot debe escalar casos urgentes."},
+    ]
+
+    summary = summarize_history(client, messages)
+    controlled_history = [{"role": "user", "content": f"Resumen previo: {summary}"}]
+    controlled_history.extend(keep_recent_messages(messages))
+    controlled_history.append({"role": "user", "content": "¿Qué decisión importante debo recordar?"})
+
+    with client.messages.stream(
+        model=MODEL,
+        max_tokens=500,
+        messages=[{"role": "user", "content": "Explícame streaming en Claude API con una analogía."}],
+    ) as stream:
+        for text in stream.text_stream:
+            print(text, end="", flush=True)
+    print()
+  
+       
 
 if __name__ == "__main__":
     main()
