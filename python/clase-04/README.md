@@ -11,7 +11,7 @@
 
 ```bash
 cp .env.example .env
-export ANTHROPIC_API_KEY="tu_api_key"
+export ANTHROPIC_API_KEY="key"
 python python/clase-04/final/main.py
 ```
 
